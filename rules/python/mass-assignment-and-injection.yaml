@@ -1,0 +1,101 @@
+rules:
+  - id: mass-assignment-from-request-body
+    languages: [python]
+    severity: ERROR
+    message: >-
+      The request body is unpacked directly into a model constructor or update.
+      Any field the client sends is written to the object, including ones it
+      should not control such as role, is_admin, or balance. Bind an explicit
+      allow-list of fields instead of splatting user input.
+    metadata:
+      category: security
+      cwe: "CWE-915: Improperly Controlled Modification of Object Attributes"
+      owasp-api: "API3:2023 - Broken Object Property Level Authorization"
+      confidence: HIGH
+      impact: HIGH
+      references:
+        - https://owasp.org/API-Security/editions/2023/en/0xa3-broken-object-property-level-authorization/
+      technology: [flask, django, sqlalchemy]
+    patterns:
+      - pattern-either:
+          - pattern: $MODEL(**request.get_json())
+          - pattern: $MODEL(**request.json)
+          - pattern: $MODEL(**request.form)
+          - pattern: $MODEL(**request.data)
+          - pattern: $MODEL.objects.create(**request.POST)
+          - pattern: $MODEL.objects.create(**request.data)
+          - pattern: $MODEL.objects.filter(...).update(**request.data)
+
+  - id: setattr-loop-over-request-data
+    languages: [python]
+    severity: ERROR
+    message: >-
+      Attributes are set on an object by looping over client-supplied keys. This
+      lets a caller write any attribute the model exposes. Iterate over a fixed
+      allow-list of permitted field names instead.
+    metadata:
+      category: security
+      cwe: "CWE-915: Improperly Controlled Modification of Object Attributes"
+      owasp-api: "API3:2023 - Broken Object Property Level Authorization"
+      confidence: HIGH
+      impact: HIGH
+      technology: [flask, django]
+    patterns:
+      - pattern-either:
+          - pattern: |
+              for $K, $V in request.get_json().items():
+                  ...
+                  setattr($OBJ, $K, $V)
+          - pattern: |
+              for $K, $V in request.json.items():
+                  ...
+                  setattr($OBJ, $K, $V)
+          - pattern: |
+              for $K, $V in request.data.items():
+                  ...
+                  setattr($OBJ, $K, $V)
+
+  - id: sql-query-string-interpolation
+    languages: [python]
+    severity: ERROR
+    message: >-
+      The SQL statement is assembled with string formatting, so any value that
+      reaches it becomes query syntax. Use parameterised queries and let the
+      driver bind the values — cursor.execute("SELECT ... WHERE id = %s", (uid,)).
+    metadata:
+      category: security
+      cwe: "CWE-89: SQL Injection"
+      owasp: "A03:2021 - Injection"
+      confidence: HIGH
+      impact: HIGH
+      technology: [sql, sqlalchemy, psycopg2, sqlite3]
+    patterns:
+      - pattern-either:
+          - pattern: $CURSOR.execute(f"...{$X}...", ...)
+          - pattern: $CURSOR.execute("..." % $X, ...)
+          - pattern: $CURSOR.execute("...".format(...), ...)
+          - pattern: $CURSOR.execute($A + $B, ...)
+          - pattern: $CURSOR.executemany(f"...{$X}...", ...)
+
+  - id: os-command-from-request-input
+    languages: [python]
+    severity: ERROR
+    message: >-
+      A shell command is built from request input. This is command injection —
+      an attacker controls part of the string the shell interprets. Pass the
+      command as a list without shell=True, and validate the input against an
+      allow-list.
+    metadata:
+      category: security
+      cwe: "CWE-78: OS Command Injection"
+      owasp: "A03:2021 - Injection"
+      confidence: HIGH
+      impact: HIGH
+      technology: [subprocess, os]
+    patterns:
+      - pattern-either:
+          - pattern: os.system(f"...{$X}...")
+          - pattern: os.popen(f"...{$X}...")
+          - pattern: subprocess.run(f"...{$X}...", ..., shell=True, ...)
+          - pattern: subprocess.call(f"...{$X}...", ..., shell=True, ...)
+          - pattern: subprocess.Popen(f"...{$X}...", ..., shell=True, ...)

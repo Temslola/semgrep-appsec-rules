@@ -1,0 +1,99 @@
+rules:
+  - id: flask-route-missing-auth-decorator
+    languages: [python]
+    severity: WARNING
+    message: >-
+      This Flask route handler has no authentication or authorization decorator.
+      If the endpoint exposes non-public data it is reachable by anyone who can
+      find the URL. Add the project's auth decorator, or add this route to the
+      documented public allow-list.
+    metadata:
+      category: security
+      cwe: "CWE-306: Missing Authentication for Critical Function"
+      owasp-api: "API2:2023 - Broken Authentication"
+      confidence: MEDIUM
+      impact: HIGH
+      technology: [flask]
+      note: >-
+        Tune the decorator names below to match your codebase before enabling
+        this rule in CI. Out of the box it recognises the most common names.
+    patterns:
+      - pattern: |
+          @$APP.route(...)
+          def $HANDLER(...):
+            ...
+      - pattern-not: |
+          @$APP.route(...)
+          @login_required
+          def $HANDLER(...):
+            ...
+      - pattern-not: |
+          @$APP.route(...)
+          @jwt_required(...)
+          def $HANDLER(...):
+            ...
+      - pattern-not: |
+          @$APP.route(...)
+          @requires_auth(...)
+          def $HANDLER(...):
+            ...
+      - pattern-not: |
+          @$APP.route(...)
+          @auth.login_required(...)
+          def $HANDLER(...):
+            ...
+
+  - id: query-by-id-without-ownership-check
+    languages: [python]
+    severity: ERROR
+    message: >-
+      An object is fetched using an identifier taken straight from the request,
+      with no filter tying it to the current user. This is the classic Broken
+      Object Level Authorization (BOLA) shape — any authenticated user can read
+      another user's record by changing the ID. Scope the query to the caller,
+      e.g. Model.query.filter_by(id=obj_id, user_id=current_user.id).first().
+    metadata:
+      category: security
+      cwe: "CWE-639: Authorization Bypass Through User-Controlled Key"
+      owasp-api: "API1:2023 - Broken Object Level Authorization"
+      confidence: MEDIUM
+      impact: HIGH
+      references:
+        - https://owasp.org/API-Security/editions/2023/en/0xa1-broken-object-level-authorization/
+      technology: [flask, sqlalchemy, django]
+    patterns:
+      - pattern-either:
+          - pattern: $MODEL.query.get($ID)
+          - pattern: $MODEL.query.get_or_404($ID)
+          - pattern: $MODEL.objects.get(pk=$ID)
+          - pattern: $MODEL.objects.get(id=$ID)
+      - metavariable-regex:
+          metavariable: $ID
+          # Identifier names that typically carry request input.
+          regex: (?i).*(id|pk|uuid|ref|slug).*
+      - pattern-not-inside: |
+          def $F(...):
+            ...
+            $MODEL.query.filter_by(..., user_id=..., ...)
+            ...
+
+  - id: django-view-csrf-exempt
+    languages: [python]
+    severity: WARNING
+    message: >-
+      This view is marked csrf_exempt, removing Django's cross-site request
+      forgery protection. Only do this for endpoints authenticated by a bearer
+      token rather than a session cookie, and confirm no cookie-based auth
+      applies to the route.
+    metadata:
+      category: security
+      cwe: "CWE-352: Cross-Site Request Forgery"
+      owasp: "A01:2021 - Broken Access Control"
+      confidence: HIGH
+      impact: MEDIUM
+      technology: [django]
+    patterns:
+      - pattern: |
+          @csrf_exempt
+          def $VIEW(...):
+            ...

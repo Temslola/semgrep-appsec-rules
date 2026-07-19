@@ -1,0 +1,100 @@
+rules:
+  - id: js-jwt-verification-disabled
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: >-
+      jwt.decode() only reads the payload — it does not check the signature.
+      Using its output for an authentication or authorization decision means
+      accepting forged tokens. Use jwt.verify(token, key, { algorithms: [...] }).
+    metadata:
+      category: security
+      cwe: "CWE-347: Improper Verification of Cryptographic Signature"
+      owasp-api: "API2:2023 - Broken Authentication"
+      confidence: MEDIUM
+      impact: HIGH
+      technology: [jsonwebtoken, express]
+      references:
+        - https://github.com/auth0/node-jsonwebtoken#jwtdecodetoken--options
+    patterns:
+      - pattern-either:
+          - pattern: jwt.decode(...)
+          - pattern: $JWT.decode(...)
+      - pattern-not-inside: |
+          jwt.verify(...)
+
+  - id: js-jwt-none-algorithm
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: >-
+      The 'none' algorithm is accepted, so an unsigned token passes verification.
+      List only the algorithm you sign with, e.g. { algorithms: ['RS256'] }.
+    metadata:
+      category: security
+      cwe: "CWE-347: Improper Verification of Cryptographic Signature"
+      owasp-api: "API2:2023 - Broken Authentication"
+      confidence: HIGH
+      impact: HIGH
+      technology: [jsonwebtoken]
+    patterns:
+      - pattern-either:
+          - pattern: 'jwt.verify($T, $K, {..., algorithms: [..., "none", ...], ...})'
+          - pattern: 'jwt.verify($T, $K, {..., algorithms: [..., "None", ...], ...})'
+
+  - id: js-mongo-query-from-request-body
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: >-
+      A MongoDB query is built directly from request input. If the client sends
+      an object instead of a string it can inject operators such as {"$ne": null}
+      or {"$gt": ""} to bypass the filter — NoSQL injection. Cast the value to
+      the expected primitive type before querying.
+    metadata:
+      category: security
+      cwe: "CWE-943: Improper Neutralization of Special Elements in Data Query Logic"
+      owasp: "A03:2021 - Injection"
+      confidence: MEDIUM
+      impact: HIGH
+      technology: [mongodb, mongoose, express]
+    patterns:
+      - pattern-either:
+          - pattern: '$MODEL.find({..., $FIELD: req.body.$X, ...})'
+          - pattern: '$MODEL.findOne({..., $FIELD: req.body.$X, ...})'
+          - pattern: '$MODEL.findOne({..., $FIELD: req.query.$X, ...})'
+
+  - id: js-object-assign-from-request-body
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: >-
+      The whole request body is merged onto a model instance, so a client can
+      set any property the schema exposes — including role or isAdmin. Pick the
+      permitted fields explicitly before assigning.
+    metadata:
+      category: security
+      cwe: "CWE-915: Improperly Controlled Modification of Object Attributes"
+      owasp-api: "API3:2023 - Broken Object Property Level Authorization"
+      confidence: HIGH
+      impact: HIGH
+      technology: [express, mongoose]
+    patterns:
+      - pattern-either:
+          - pattern: Object.assign($OBJ, req.body)
+          - pattern: $MODEL.create(req.body)
+          - pattern: $MODEL.findByIdAndUpdate($ID, req.body, ...)
+          - pattern: "{..., ...req.body}"
+
+  - id: js-express-cors-wildcard-with-credentials
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: >-
+      CORS is configured with a wildcard origin while credentials are allowed.
+      Browsers reject this combination, and where it is worked around it exposes
+      authenticated responses to any site. Set an explicit origin allow-list.
+    metadata:
+      category: security
+      cwe: "CWE-942: Permissive Cross-domain Policy with Untrusted Domains"
+      owasp: "A05:2021 - Security Misconfiguration"
+      confidence: HIGH
+      impact: HIGH
+      technology: [express, cors]
+    patterns:
+      - pattern: 'cors({..., origin: "*", ..., credentials: true, ...})'
