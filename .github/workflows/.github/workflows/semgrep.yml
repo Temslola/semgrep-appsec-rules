@@ -1,0 +1,59 @@
+name: semgrep
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    # Weekly run so new code is re-checked even without a push.
+    - cron: "0 6 * * 1"
+
+jobs:
+  test-rules:
+    name: Validate rules against fixtures
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Semgrep
+        run: pip install semgrep
+
+      # Every rule must fire on the vulnerable fixture and stay silent on the
+      # safe one. A rule that fails this does not get merged.
+      - name: Run rule unit tests
+        run: semgrep --test --config rules/ tests/
+
+  scan:
+    name: Scan repository with these rules
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Semgrep
+        run: pip install semgrep
+
+      # Exclude the test fixtures — they are deliberately vulnerable.
+      - name: Scan
+        run: |
+          semgrep \
+            --config rules/ \
+            --exclude tests/ \
+            --sarif \
+            --output semgrep.sarif \
+            || true
+
+      - name: Upload results to GitHub code scanning
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: semgrep.sarif
