@@ -1,4 +1,5 @@
 # semgrep-appsec-rules
+[![semgrep](https://github.com/Temslola/semgrep-appsec-rules/actions/workflows/semgrep.yml/badge.svg)](https://github.com/Temslola/semgrep-appsec-rules/actions/workflows/semgrep.yml)
 
 Custom [Semgrep](https://semgrep.dev) rules for the vulnerability classes I most
 often find by hand during API and web application penetration testing — **BOLA,
