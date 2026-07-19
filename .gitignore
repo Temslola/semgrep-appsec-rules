@@ -1,0 +1,4 @@
+.semgrep/
+semgrep.sarif
+__pycache__/
+*.pyc
